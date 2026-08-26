@@ -132,23 +132,47 @@ def _classify_playlist(body: "str | None") -> "tuple[str, bool]":
     return "unknown", encrypted
 
 
-def _install_chromium(status: "Callable[[str], None]") -> None:
-    """Download the Chromium build Playwright needs. Runs the bundled
-    `playwright install` in-process so it works from a frozen (PyInstaller)
-    executable too, not just a normal pip install."""
-    status("Chromium not found — downloading it now (first run only, ~150MB)...")
+def _run_playwright_cli(args: list[str], status: "Callable[[str], None]") -> None:
+    """Run a `playwright <args>` subcommand in-process, via the bundled
+    driver — works from a frozen (PyInstaller) executable too, not just a
+    normal pip install."""
     from playwright.__main__ import main as playwright_main
 
     old_argv = sys.argv
-    sys.argv = ["playwright", "install", "chromium"]
+    sys.argv = ["playwright", *args]
     try:
         playwright_main()
     except SystemExit as e:
         if e.code not in (None, 0):
-            raise RuntimeError(f"Chromium download failed (exit code {e.code}).") from e
+            raise RuntimeError(f"playwright {' '.join(args)} failed (exit code {e.code}).") from e
     finally:
         sys.argv = old_argv
-    status("Chromium downloaded.")
+    status(f"playwright {' '.join(args)} done.")
+
+
+def _install_chromium(status: "Callable[[str], None]") -> None:
+    """Download the Chromium build Playwright needs."""
+    status("Chromium not found — downloading it now (first run only, ~150MB)...")
+    _run_playwright_cli(["install", "chromium"], status)
+
+
+def install_os_deps(on_status: "Callable[[str], None] | None" = None) -> bool:
+    """Linux only: install the OS packages Chromium needs to actually launch
+    (nss, atk, alsa, etc.) via `playwright install-deps`, which shells out to
+    apt/dnf with the exact package list for the running distro — that list
+    is large and drifts across distro releases (e.g. Ubuntu 24.04 renaming
+    libasound2 to libasound2t64), so we defer to Playwright's own
+    upstream-maintained resolver instead of hardcoding it. Needs root; the
+    .deb/.rpm postinst script is what actually calls this (via
+    `hls-sniffer --install-deps`), not anything that runs as a normal user.
+    Returns True on success, False otherwise (never raises)."""
+    status = on_status or (lambda _msg: None)
+    try:
+        _run_playwright_cli(["install-deps", "chromium"], status)
+        return True
+    except Exception as e:
+        status(f"OS dependency install failed: {e}")
+        return False
 
 
 def ensure_chromium(on_status: "Callable[[str], None] | None" = None) -> bool:

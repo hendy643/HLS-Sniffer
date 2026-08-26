@@ -50,9 +50,16 @@ Notes:
   `xattr -d com.apple.quarantine <file>` once from Terminal.
 - **Linux `.deb`/`.rpm`**: installs to `/opt/hls-sniffer` with a
   `hls-sniffer-gui` and `hls-sniffer` command on your PATH, plus a desktop
-  entry. **AppImage**: `chmod +x` then run directly, no install needed.
-  **Flatpak**: `flatpak install hls-sniffer-gui-linux-<tag>.flatpak`, then
-  launch as `io.github.hls_sniffer.HlsSniffer`.
+  entry. `apt`/`dnf` pull in the small set of X11/Wayland libraries PyQt6
+  needs from your distro's own repos automatically; on Debian/Ubuntu `mpv`
+  is pulled in too (recommended, not required). Chromium's own — much
+  larger and more version-sensitive — set of OS packages is installed
+  separately right after, via a postinstall step that runs Playwright's own
+  `install-deps` (needs internet; best-effort, won't fail the package
+  install if it can't reach the network). **AppImage**: `chmod +x` then run
+  directly, no install needed. **Flatpak**:
+  `flatpak install hls-sniffer-gui-linux-<tag>.flatpak`, then launch as
+  `io.github.hls_sniffer.HlsSniffer`.
 - Standalone binaries need `chmod +x` on macOS/Linux.
 
 On first run, if Chromium isn't already installed for Playwright, the app

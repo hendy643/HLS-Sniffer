@@ -28,6 +28,12 @@ def main() -> None:
         help="Just download Playwright's Chromium (if not already present) and exit — "
         "used by the Windows installer, but safe to run manually.",
     )
+    parser.add_argument(
+        "--install-deps",
+        action="store_true",
+        help="Linux only: install the OS packages Chromium needs (via `playwright install-deps`, "
+        "needs root) and exit — used by the .deb/.rpm postinst script, but safe to run manually.",
+    )
     args = parser.parse_args()
 
     def on_status(msg: str) -> None:
@@ -36,6 +42,10 @@ def main() -> None:
 
     if args.install_chromium:
         ok = core.ensure_chromium(on_status)
+        sys.exit(0 if ok else 1)
+
+    if args.install_deps:
+        ok = core.install_os_deps(on_status)
         sys.exit(0 if ok else 1)
 
     if not args.url:

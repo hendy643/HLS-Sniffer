@@ -24,8 +24,29 @@ if [ ! -d "$ROOT/packaging/assets/hicolor" ]; then
 fi
 
 install -Dm755 "$ROOT/packaging/linux/hls-sniffer-gui-launcher" "$DIST/.launcher/hls-sniffer-gui"
+chmod +x "$ROOT/packaging/linux/postinst.sh"
 
+# Most of Qt itself is bundled in the PyInstaller build (--collect-all
+# PyQt6), but the low-level X11/Wayland platform-plugin integration libs
+# aren't, and PyQt6 apps fail to even start without them ("could not load
+# the Qt platform plugin xcb"). These package names are small and stable
+# across distro releases, so declaring them as hard deps here is safe —
+# unlike Chromium's much larger, faster-drifting dependency list, which
+# postinst.sh resolves via Playwright's own `install-deps` instead (see
+# there for why).
 for PKG_TYPE in deb rpm; do
+    if [ "$PKG_TYPE" = "deb" ]; then
+        # mpv is in Debian/Ubuntu's default repos, so this is safe as a
+        # recommendation (apt installs it by default, but a missing mpv
+        # doesn't block installing hls-sniffer itself).
+        DEPS=(-d libxcb-cursor0 -d libxkbcommon0 --deb-recommends mpv)
+    else
+        # mpv isn't in Fedora/RHEL's default repos (needs RPM Fusion
+        # enabled), so it's deliberately left off here rather than risking
+        # an unresolvable hard dependency on a stock system.
+        DEPS=(-d xcb-util-cursor -d libxkbcommon)
+    fi
+
     fpm -s dir -t "$PKG_TYPE" -f \
         -n hls-sniffer \
         -v "$VERSION" \
@@ -33,6 +54,8 @@ for PKG_TYPE in deb rpm; do
         --url "https://github.com/OWNER/hls-sniffer" \
         --license MIT \
         --maintainer "hls-sniffer contributors" \
+        --after-install "$ROOT/packaging/linux/postinst.sh" \
+        "${DEPS[@]}" \
         -p "$DIST/hls-sniffer-linux${TAG_SUFFIX}.${PKG_TYPE}" \
         "$DIST/hls-sniffer-gui/=/opt/hls-sniffer/" \
         "$DIST/.launcher/hls-sniffer-gui=/usr/bin/hls-sniffer-gui" \
