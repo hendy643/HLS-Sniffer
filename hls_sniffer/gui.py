@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -29,6 +30,19 @@ from PyQt6.QtWidgets import (
 )
 
 from . import core
+
+
+def _icon_path() -> "Path | None":
+    """Locate the bundled app icon (see packaging/assets/generate_icon.py)
+    for QApplication.setWindowIcon() — this controls the *running* window's
+    title-bar/taskbar icon, which is separate from the .exe file's own icon
+    that PyInstaller's --icon sets at build time."""
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        candidate = base / "icon.png"
+    else:
+        candidate = Path(__file__).resolve().parent / "icon.png"
+    return candidate if candidate.exists() else None
 
 
 def find_mpv() -> str:
@@ -267,6 +281,9 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    icon_path = _icon_path()
+    if icon_path:
+        app.setWindowIcon(QIcon(str(icon_path)))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

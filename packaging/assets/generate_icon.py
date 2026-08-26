@@ -15,6 +15,7 @@ from PIL import Image
 
 OUT = Path(__file__).resolve().parent
 SOURCE = OUT / "hls_sniffer.png"
+PACKAGE_DIR = OUT.parent.parent / "hls_sniffer"
 
 # Standard freedesktop hicolor theme sizes (used by .deb/.rpm/AppImage/Flatpak
 # desktop integration) plus the sizes Windows .ico and macOS .icns embed.
@@ -67,8 +68,18 @@ def main() -> None:
         apps_dir.mkdir(parents=True, exist_ok=True)
         resized(master, size).save(apps_dir / "hls-sniffer.png")
 
+    # A copy inside the package itself: PyInstaller's --icon only sets the
+    # .exe file's own icon (what Explorer/the taskbar shortcut shows before
+    # launch) — the *running* window's title-bar/taskbar icon is a separate
+    # Qt-level thing set via QApplication.setWindowIcon() in gui.py, which
+    # loads this file at runtime (see build.py's --add-data for the frozen
+    # case, and gui.py's _icon_path() for how it's located either way).
+    PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
+    resized(master, 256).save(PACKAGE_DIR / "icon.png")
+
     print(f"Wrote icon.ico ({ICO_SIZES}), icon.icns ({ICNS_SIZES}), "
-          f"icon.png, icon_256.png, and hicolor/ ({HICOLOR_SIZES}) to {OUT}")
+          f"icon.png, icon_256.png, hicolor/ ({HICOLOR_SIZES}), and "
+          f"hls_sniffer/icon.png to {OUT}")
 
 
 if __name__ == "__main__":

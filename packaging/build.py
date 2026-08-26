@@ -20,6 +20,7 @@ installer scripts under packaging/{windows,linux,macos}/.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -30,6 +31,8 @@ ASSETS = ROOT / "packaging" / "assets"
 
 
 def _icon_args() -> list[str]:
+    """The .exe/.app file's own icon — what Explorer/Finder/the taskbar
+    shortcut shows before the app is even running."""
     if sys.platform == "darwin":
         icon = ASSETS / "icon.icns"
     elif sys.platform.startswith("win"):
@@ -37,6 +40,16 @@ def _icon_args() -> list[str]:
     else:
         icon = ASSETS / "icon.png"
     return ["--icon", str(icon)] if icon.exists() else []
+
+
+def _window_icon_data_args() -> list[str]:
+    """Bundles hls_sniffer/icon.png into the frozen app so gui.py can load
+    it at runtime for QApplication.setWindowIcon() — the *running* window's
+    title-bar/taskbar icon, which --icon above does not set."""
+    icon = ROOT / "hls_sniffer" / "icon.png"
+    if not icon.exists():
+        return []
+    return ["--add-data", f"{icon}{os.pathsep}."]
 
 
 def build_cli(onedir: bool) -> None:
@@ -61,6 +74,7 @@ def build_gui(onedir: bool) -> None:
         "--collect-all", "playwright",
         "--collect-all", "PyQt6",
         *_icon_args(),
+        *_window_icon_data_args(),
     ]
     if sys.platform == "darwin":
         args += ["--osx-bundle-identifier", "io.github.hls-sniffer.app"]
