@@ -1,0 +1,35 @@
+app-id: io.github.hls_sniffer.HlsSniffer
+runtime: org.freedesktop.Platform
+runtime-version: "23.08"
+sdk: org.freedesktop.Sdk
+command: hls-sniffer-gui
+finish-args:
+  - --share=network       # Playwright/Chromium fetch pages and (first run) download itself
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=xdg-download
+modules:
+  - name: hls-sniffer
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/bin
+      - cp -r hls-sniffer-gui/. /app/bin/
+      - chmod +x /app/bin/hls-sniffer-gui
+      - install -Dm644 hls-sniffer.desktop /app/share/applications/io.github.hls_sniffer.HlsSniffer.desktop
+      - sed -i 's/^Icon=hls-sniffer$/Icon=io.github.hls_sniffer.HlsSniffer/' /app/share/applications/io.github.hls_sniffer.HlsSniffer.desktop
+      - |
+        for size in 16 22 24 32 48 64 128 256 512; do
+          install -Dm644 "hicolor/${size}x${size}/apps/hls-sniffer.png" "/app/share/icons/hicolor/${size}x${size}/apps/io.github.hls_sniffer.HlsSniffer.png"
+        done
+    sources:
+      - type: dir
+        path: ../../../dist/hls-sniffer-gui
+        dest: hls-sniffer-gui
+      - type: file
+        path: ../hls-sniffer.desktop
+      - type: dir
+        path: ../../assets/hicolor
+        dest: hicolor

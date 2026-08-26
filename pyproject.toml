@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hls-sniffer"
+version = "0.1.0"
+description = "Find and diagnose the real HLS (.m3u8) stream source behind a JS-heavy video embed page"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.40",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt6>=6.6"]
+build = ["pyinstaller>=6.6", "pillow>=10.0"]
+
+[project.scripts]
+hls-sniffer = "hls_sniffer.cli:main"
+
+[project.gui-scripts]
+hls-sniffer-gui = "hls_sniffer.gui:main"
+
+[tool.setuptools]
+packages = ["hls_sniffer"]

@@ -1,0 +1,192 @@
+name: Build and release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine version and tag
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}"
+            $v = $tag.TrimStart("v")
+          } else {
+            $tag = ""
+            $v = "0.0.0"
+          }
+          echo "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install build dependencies
+        run: pip install -e ".[gui,build]"
+
+      - name: Generate icons
+        run: python packaging/assets/generate_icon.py
+
+      - name: Build raw onefile binaries
+        run: python packaging/build.py both
+
+      - name: Rename raw binaries
+        run: python packaging/rename_artifacts.py windows "$env:TAG"
+
+      - name: Clean onefile GUI output (name collides with onedir build)
+        run: Remove-Item -Force -ErrorAction SilentlyContinue dist\hls-sniffer-gui.exe
+
+      - name: Rebuild GUI as onedir (for the installer)
+        run: python packaging/build.py gui --onedir
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: |
+          $defines = @("/DAppVersion=$env:VERSION")
+          if ("$env:TAG" -ne "") { $defines += "/DTag=$env:TAG" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\installer.iss @defines
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hls-sniffer-windows
+          path: |
+            dist/hls-sniffer-windows*.exe
+            dist/hls-sniffer-gui-windows*.exe
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine version and tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "TAG=" >> "$GITHUB_ENV"
+            echo "VERSION=0.0.0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install build dependencies
+        run: pip install -e ".[gui,build]"
+
+      - name: Generate icons
+        run: python packaging/assets/generate_icon.py
+
+      - name: Build raw onefile binaries
+        run: python packaging/build.py both
+
+      - name: Rename raw binaries
+        run: python packaging/rename_artifacts.py linux "$TAG"
+
+      - name: Clean onefile GUI output (name collides with onedir build)
+        run: rm -f dist/hls-sniffer-gui
+
+      - name: Rebuild GUI as onedir (for deb/rpm/AppImage/flatpak)
+        run: python packaging/build.py gui --onedir
+
+      - name: Install fpm (deb/rpm packager)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm
+          sudo gem install --no-document fpm
+
+      - name: Build .deb and .rpm
+        run: bash packaging/linux/build_deb_rpm.sh "$VERSION" "$TAG"
+
+      - name: Build AppImage
+        run: bash packaging/linux/build_appimage.sh "$TAG"
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+
+      - name: Build Flatpak
+        run: bash packaging/linux/build_flatpak.sh "$TAG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hls-sniffer-linux
+          path: |
+            dist/hls-sniffer-linux*
+            dist/hls-sniffer-gui-linux*
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine version and tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          else
+            echo "TAG=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install build dependencies
+        run: pip install -e ".[gui,build]"
+
+      - name: Generate icons
+        run: python packaging/assets/generate_icon.py
+
+      - name: Build raw onefile binaries
+        run: python packaging/build.py both
+
+      - name: Rename raw binaries
+        run: python packaging/rename_artifacts.py macos "$TAG"
+
+      - name: Clean onefile GUI output (name collides with onedir build)
+        run: rm -f dist/hls-sniffer-gui
+
+      - name: Rebuild GUI as onedir (.app bundle) for DMG
+        run: python packaging/build.py gui --onedir
+
+      - name: Build DMG
+        run: bash packaging/macos/build_dmg.sh "$TAG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hls-sniffer-macos
+          path: |
+            dist/hls-sniffer-macos*
+            dist/hls-sniffer-gui-macos*
+          if-no-files-found: error
+
+  release:
+    needs: [windows, linux, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

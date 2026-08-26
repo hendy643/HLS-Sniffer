@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=hls-sniffer
+Comment=Find and diagnose HLS stream sources behind video embeds
+Exec=hls-sniffer-gui
+Icon=hls-sniffer
+Categories=Network;Utility;
+Terminal=false
