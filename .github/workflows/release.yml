@@ -7,7 +7,28 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # Refuses to build/release a tag unless it's actually reachable from
+  # master — a `v*` tag pushed on develop/a feature branch by mistake (or
+  # before it's merged) must not trigger a real published release.
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on master
+        if: github.ref_type == 'tag'
+        run: |
+          git fetch origin master
+          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/master; then
+            echo "::error::Tag '${{ github.ref_name }}' (${{ github.sha }}) is not reachable from master — refusing to build a release from it. Merge it to master first, then re-tag."
+            exit 1
+          fi
+          echo "Tag '${{ github.ref_name }}' is on master, proceeding."
+
   windows:
+    needs: guard
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +85,7 @@ jobs:
           if-no-files-found: error
 
   linux:
+    needs: guard
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,6 +151,7 @@ jobs:
           if-no-files-found: error
 
   macos:
+    needs: guard
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
