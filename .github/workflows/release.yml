@@ -213,6 +213,7 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+          max_parallel_uploads: 3
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
