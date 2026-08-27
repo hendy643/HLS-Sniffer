@@ -213,3 +213,4 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+          max_parallel_uploads: 3
